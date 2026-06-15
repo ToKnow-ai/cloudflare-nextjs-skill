@@ -11,6 +11,42 @@ Build a Next.js 16 site on Cloudflare Workers (or alternatives) end-to-end. Dist
 
 ---
 
+## Stay current — verify versions and research the latest online (do this BEFORE Phase 1)
+
+This skill is dated. Cloudflare, `@opennextjs/cloudflare`, Next.js, Wrangler, and the payment SDKs all move quickly, so **treat every version number and API claim in this file as a hint, not gospel.** Before you scaffold anything, spend two minutes confirming the current state of the world, then tell the user what (if anything) changed.
+
+### Verified facts as of 2026-06-15 (re-check, don't trust blindly)
+
+| Thing | Verified value | Source to re-check |
+|---|---|---|
+| `@opennextjs/cloudflare` | **1.19.11** (MIT) | https://www.npmjs.com/package/@opennextjs/cloudflare |
+| Next.js support | **All Next.js 16** minors/patches + latest 14/15. Next 14 support dropped Q1 2026. | https://opennext.js.org/cloudflare |
+| Runtime | **Node.js runtime** (NOT Edge). The older `@cloudflare/next-on-pages` Edge-only path is legacy. | https://opennext.js.org/cloudflare |
+| Official scaffold | `npm create cloudflare@latest -- my-app --framework=next --platform=workers` | https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/ |
+| Auto-config | `wrangler deploy` now auto-detects Next.js and **generates `wrangler.jsonc`** (with `$schema`, `nodejs_compat`, `observability.enabled`). This skill still defaults to `wrangler.toml` by choice — just know the official scaffold emits `.jsonc`. | same |
+| `compatibility_date` | set to **today's date** (must be `2024-09-23` or later) | https://developers.cloudflare.com/workers/configuration/compatibility-dates/ |
+| Worker size limit | 3 MiB gzip (free) / 10 MiB (paid) | https://developers.cloudflare.com/workers/platform/limits/ |
+| Node middleware | Next.js 15.2+ Node middleware is **not yet supported** on Workers — keep middleware edge-safe | https://opennext.js.org/cloudflare |
+
+> **Runtime note worth flagging:** several gotchas later in this doc say "add `export const runtime = 'edge'` to D1/R2 routes." That was true for `next-on-pages`. On the current `@opennextjs/cloudflare` (Node.js runtime) you generally do **NOT** set `runtime = "edge"` — the default Node runtime supports more APIs and is what you want. If the cached gotcha and the live OpenNext docs disagree, the docs win.
+
+### How to research the latest (give the user the option, and do it yourself)
+
+Run these checks (and offer to show the user the results) before Phase 1:
+
+1. `npm view @opennextjs/cloudflare version` - `npm view next version` - `npm view wrangler version` - `npm view next-auth@beta version`.
+2. Fetch (or open in the browser) these canonical pages:
+   - OpenNext Cloudflare docs: https://opennext.js.org/cloudflare (get-started, caching, bindings, known-issues)
+   - Cloudflare Workers Next.js guide: https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/
+   - Wrangler config reference: https://developers.cloudflare.com/workers/wrangler/configuration/
+   - Next.js release notes / blog: https://nextjs.org/blog
+   - Payment provider changelog (if Q18 picked one): Paystack https://paystack.com/docs/changelog/api/ - Stripe https://docs.stripe.com/changelog
+3. If any pinned version here is now >2 minors behind, bump to the current stable, note it in `IMPLEMENTATION.md`, and record the correction in the skill itself (see [L14](#l14--network-check-and-self-update-duty-agent-responsibility) + [L15](#l15--agent-notes-append-new-findings-here-with-date--repo-evidence)).
+
+The detailed self-update duty lives in [L14](#l14--network-check-and-self-update-duty-agent-responsibility); this box is the short, do-it-first version.
+
+---
+
 ## Bootstrap — empty workspace / no git repo (run FIRST if applicable)
 
 This skill is designed to be **dropped into an empty folder**: the user opens VS Code on a fresh directory, says "build me a website", and the skill takes over from zero. Run these checks before anything else:
@@ -725,6 +761,27 @@ When the user says "all phases done" or the last phase is `[COMPLETE]`, perform 
 
 ---
 
+## Related & collaborating skills (compose, don't reinvent)
+
+This skill owns "design -> build -> ship a Cloudflare Next.js site." It deliberately does NOT try to be a testing framework, a design-system generator, or a docs writer. When the project needs one of those, **compose this skill with a focused companion skill** instead of bloating the plan. Skills use a simple, portable format — a folder with a `SKILL.md` (YAML front-matter `name` + `description`, then instructions) per the [Agent Skills standard](https://agentskills.io/) — so companions drop side-by-side under `.github/skills/` (VS Code Copilot) or your Claude skills directory, and the agent loads whichever the task triggers.
+
+| Need in the project | Companion skill to reach for | Where it plugs into the phases |
+|---|---|---|
+| End-to-end UI testing of the shipped site (click-throughs, a11y, screenshots) | A **webapp-testing / Playwright** skill (see the `webapp-testing` example in [anthropics/skills](https://github.com/anthropics/skills)) | Phase 10 polish + Final Review manual test plan |
+| Exposing the site's data to agents | An **MCP-server-builder** skill | Post-launch / v2 |
+| Brand kit, colour system, logo, typography | A **brand-guidelines / design-system** skill | Phase 2 (theme) + Inspiration Intake |
+| Producing PDFs (invoices, receipts, catalogues) | A **pdf / docx** document skill (anthropics/skills `document-skills`) | Phase 8 (receipts) or admin export |
+| Marketing copy, blog seed posts, SEO metadata | A **content / copywriting** skill | Phase 5/6 + Sample content (L9) |
+| Spreadsheet import/export of products/orders | An **xlsx / csv** skill | Admin CSV import/export (Q43) |
+
+**How to compose them cleanly:**
+- Keep each skill in its own `.github/skills/<name>/` folder; never merge their instructions into this file.
+- This skill stays the "spine" — it owns the plan, the phase gates, and the commit checkpoints. A companion skill is invoked *within* a phase for its specialty, then control returns here.
+- If a companion skill and this one disagree on a Cloudflare-specific fact, this skill's [Lessons from Shipped Repos](#lessons-from-shipped-repos-real-world-divergences) win (they are audited against real deployments) — but still re-check the live docs per the Stay-current box above.
+- Before writing a brand-new skill, browse the [anthropics/skills](https://github.com/anthropics/skills) catalogue and [agentskills.io](https://agentskills.io/) for an existing one. Reuse beats reinvention.
+
+---
+
 ## Source projects (real-world reference plans)
 
 Four shipped projects produced the patterns above, audited 18 April 2026. Read their `IMPLEMENTATION*.md` files for concrete examples of completed phases, diversion logs, and SQL schemas:
@@ -1091,7 +1148,7 @@ When the user is ready for v2, these are the features Repo B layered on top of t
 
 The skill is dated — packages and Cloudflare APIs change. Before Phase 1 the agent **must**:
 
-1. **Check package currency.** Run `npm view next version`, `npm view @opennextjs/cloudflare version`, `npm view wrangler version`, `npm view next-auth@beta version`. If any observed in the audit (Next 16.2.4, @opennextjs/cloudflare 1.19.1, wrangler 4.83.0, next-auth 5.0.0-beta.30) is now **>2 minor versions behind**, pin to the latest stable and note the bump in the plan.
+1. **Check package currency.** Run `npm view next version`, `npm view @opennextjs/cloudflare version`, `npm view wrangler version`, `npm view next-auth@beta version`. If any observed value (audit 18 Apr 2026: Next 16.2.4, @opennextjs/cloudflare 1.19.1, wrangler 4.83.0, next-auth 5.0.0-beta.30; re-verified 15 Jun 2026: @opennextjs/cloudflare **1.19.11**) is now **>2 minor versions behind**, pin to the latest stable and note the bump in the plan.
 2. **Check Cloudflare compatibility_date.** Suggest today's date (or within the last 30 days) for new projects; for existing repos flag any `compatibility_date` older than 6 months.
 3. **Verify the `middleware.ts` vs `proxy.ts` convention.** Grep `node_modules/next/dist/` for the current filename Next.js expects. Do not rely on this SKILL.md's cached claim.
 4. **Check Paystack / Stripe API versions.** If the user picked a payment provider, `fetch_webpage` the provider's "API changelog" page and surface any breaking changes since the reference implementation.
@@ -1108,4 +1165,8 @@ The skill is dated — packages and Cloudflare APIs change. Before Phase 1 the a
 - `2026-04-18` — NextAuth v5 is still on `5.0.0-beta.30` in two shipped production sites. Recommend jose for new novice-level projects until GA.
 - `2026-04-18` — `Repo C/wrangler.toml` has `compatibility_date = "2024-09-23"` (19 months stale). Confirms AP14.
 - `2026-04-18` — Added [B6 Plan Versioning Rule](#b6--plan-versioning-rule-never-overwrite-old-plans) after `Repo A` audit produced `IMPLEMENTATION_V2.md`. Old `Implementation.md` retained with banner pointing at v2; pattern to repeat for every future vN. Evidence: `Repo A/Implementation.md` (lines 1-13 banner) + `Repo A/IMPLEMENTATION_V2.md` (front-matter `Replaces:` line).
+- `2026-06-15` — Re-verified package currency: `@opennextjs/cloudflare` at **1.19.11** (npm), Next.js 16 fully supported, Next 14 support dropped Q1 2026. Evidence: https://www.npmjs.com/package/@opennextjs/cloudflare , https://opennext.js.org/cloudflare .
+- `2026-06-15` — Cloudflare's `wrangler deploy` auto-detection and `npm create cloudflare@latest -- --framework=next --platform=workers` now emit **`wrangler.jsonc`** by default (with `$schema`, `nodejs_compat`, `observability.enabled`). Skill still defaults to `.toml` by choice; documented in the Stay-current box. Evidence: https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/ .
+- `2026-06-15` — On current `@opennextjs/cloudflare` (Node.js runtime) `export const runtime = "edge"` is no longer needed for D1/R2 routes (that was a `next-on-pages` requirement). Flagged inline in the Stay-current runtime note; treat older "runtime = edge" gotchas as legacy. Evidence: https://opennext.js.org/cloudflare .
+- `2026-06-15` — Added the "Stay current / research latest online" box (top) and the "Related & collaborating skills" section. Vendored as the public skill at https://github.com/ToKnow-ai/cloudflare-nextjs-skill .
 
